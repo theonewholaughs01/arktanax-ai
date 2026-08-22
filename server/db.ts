@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { assistantMessages, assistantThreads, InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,118 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
+  if (!db) throw new Error("Database is not available.");
+  return db;
+}
+
+type Database = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+export function createConversationDbHelpers(db: Database) {
+  const getConversationThread = async (userId: number, threadId: number) => {
+    const result = await db
+      .select()
+      .from(assistantThreads)
+      .where(and(eq(assistantThreads.id, threadId), eq(assistantThreads.userId, userId)))
+      .limit(1);
+    return result[0];
+  };
+
+  return {
+    listConversationThreads: (userId: number) =>
+      db
+        .select()
+        .from(assistantThreads)
+        .where(eq(assistantThreads.userId, userId))
+        .orderBy(desc(assistantThreads.lastMessageAt)),
+
+    getConversationThread,
+
+    async createConversationThread(userId: number, title: string) {
+      const [created] = await db
+        .insert(assistantThreads)
+        .values({ userId, title })
+        .$returningId();
+      const thread = await getConversationThread(userId, created.id);
+      if (!thread) throw new Error("Conversation could not be created.");
+      return thread;
+    },
+
+    async renameConversationThread(userId: number, threadId: number, title: string) {
+      await db
+        .update(assistantThreads)
+        .set({ title, updatedAt: new Date() })
+        .where(and(eq(assistantThreads.id, threadId), eq(assistantThreads.userId, userId)));
+      const thread = await getConversationThread(userId, threadId);
+      if (!thread) throw new Error("Conversation could not be renamed.");
+      return thread;
+    },
+
+    async getThreadMessages(userId: number, threadId: number, limit = 100) {
+      const messages = await db
+        .select()
+        .from(assistantMessages)
+        .where(and(eq(assistantMessages.userId, userId), eq(assistantMessages.threadId, threadId)))
+        .orderBy(desc(assistantMessages.createdAt), desc(assistantMessages.id))
+        .limit(limit);
+      return messages.reverse();
+    },
+
+    async appendConversationMessage(
+      userId: number,
+      threadId: number,
+      role: "user" | "assistant",
+      content: string,
+    ) {
+      const [created] = await db
+        .insert(assistantMessages)
+        .values({ userId, threadId, role, content })
+        .$returningId();
+
+      const now = new Date();
+      await db
+        .update(assistantThreads)
+        .set({ lastMessageAt: now, updatedAt: now })
+        .where(and(eq(assistantThreads.id, threadId), eq(assistantThreads.userId, userId)));
+
+      return created;
+    },
+
+    async deleteConversationThread(userId: number, threadId: number) {
+      const thread = await getConversationThread(userId, threadId);
+      if (!thread) return false;
+
+      await db
+        .delete(assistantMessages)
+        .where(and(eq(assistantMessages.userId, userId), eq(assistantMessages.threadId, threadId)));
+      await db
+        .delete(assistantThreads)
+        .where(and(eq(assistantThreads.id, threadId), eq(assistantThreads.userId, userId)));
+      return true;
+    },
+  };
+}
+
+const withConversationDb = async <T>(callback: (helpers: ReturnType<typeof createConversationDbHelpers>) => Promise<T> | T) =>
+  callback(createConversationDbHelpers(requireDb(await getDb())));
+
+export const listConversationThreads = (userId: number) =>
+  withConversationDb(helpers => helpers.listConversationThreads(userId));
+
+export const getConversationThread = (userId: number, threadId: number) =>
+  withConversationDb(helpers => helpers.getConversationThread(userId, threadId));
+
+export const createConversationThread = (userId: number, title: string) =>
+  withConversationDb(helpers => helpers.createConversationThread(userId, title));
+
+export const renameConversationThread = (userId: number, threadId: number, title: string) =>
+  withConversationDb(helpers => helpers.renameConversationThread(userId, threadId, title));
+
+export const getThreadMessages = (userId: number, threadId: number, limit = 100) =>
+  withConversationDb(helpers => helpers.getThreadMessages(userId, threadId, limit));
+
+export const appendConversationMessage = (userId: number, threadId: number, role: "user" | "assistant", content: string) =>
+  withConversationDb(helpers => helpers.appendConversationMessage(userId, threadId, role, content));
+
+export const deleteConversationThread = (userId: number, threadId: number) =>
+  withConversationDb(helpers => helpers.deleteConversationThread(userId, threadId));

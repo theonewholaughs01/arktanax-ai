@@ -1,0 +1,21 @@
+# Project TODO
+
+- [x] Create persistent conversation and message data models scoped to the signed-in user.
+- [x] Add secure assistant procedures that generate context-aware, multi-turn LLM replies from the active conversation.
+- [x] Add a conversation management flow for creating, listing, resuming, and deleting user threads.
+- [x] Add browser push-to-talk recording and server-side voice transcription into the prompt composer.
+- [x] Add explicit assistant states for idle, listening, transcribing, thinking, speaking, and error recovery.
+- [x] Add browser speech synthesis for assistant replies with accessible mute and stop-speech controls.
+- [x] Build a typed prompt composer, live conversation transcript, microphone control, and thread navigation.
+- [x] Implement the dark cinematic ARKTANAX visual language using a seamless violet-to-teal atmosphere, asymmetric composition, generous negative space, bold lower-left typography, and delicate upper-right subtitles.
+- [x] Clarify that automation integrations are not connected and avoid implying external-device control.
+- [x] Write and run focused Vitest coverage for assistant conversation behavior and data access.
+- [ ] Verify the core chat, persistence, voice, speech, and responsive UI flows in the browser.
+- [ ] Save a completed project checkpoint and provide an implementation summary.
+- [x] Create or update the ARKTANAX GitHub repository with private visibility.
+- [x] Implement browser microphone permission handling, push-to-talk recording lifecycle, and audio upload to the voice transcription service.
+- [x] Turn each successful voice transcription into the composer’s editable assistant prompt, then send it through the active conversation.
+- [ ] Verify listening, transcribing, and microphone-error states in the ARKTANAX browser experience.
+- [x] Add Vitest coverage for protected assistant router operations, including user-scoped thread creation, retrieval, deletion, message persistence, and LLM context handoff.
+- [x] Add direct unit coverage for ARKTANAX database helpers, including user-scoped thread and message queries, ordering, append updates, and deletion.
+- [x] Add direct test coverage for ARKTANAX thread listing, scoped thread retrieval, and existing/missing deletion outcomes.
