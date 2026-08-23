@@ -31,6 +31,7 @@ export const assistantThreads = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     userId: int("userId").notNull(),
     title: varchar("title", { length: 160 }).notNull().default("New conversation"),
+    mode: mysqlEnum("mode", ["fast", "deep", "code"]).notNull().default("fast"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastMessageAt: timestamp("lastMessageAt").defaultNow().notNull(),
@@ -40,6 +41,37 @@ export const assistantThreads = mysqlTable(
       table.userId,
       table.lastMessageAt,
     ),
+  }),
+);
+
+export const assistantProfiles = mysqlTable("assistant_profiles", {
+  userId: int("userId").primaryKey(),
+  displayName: varchar("displayName", { length: 80 }),
+  preferredMode: mysqlEnum("preferredMode", ["fast", "deep", "code"]).notNull().default("fast"),
+  responseStyle: mysqlEnum("responseStyle", ["brief", "balanced", "detailed"]).notNull().default("balanced"),
+  focusAreas: text("focusAreas"),
+  workingStyle: text("workingStyle"),
+  personalInstructions: text("personalInstructions"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const assistantFiles = mysqlTable(
+  "assistant_files",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    threadId: int("threadId"),
+    fileName: varchar("fileName", { length: 255 }).notNull(),
+    storageKey: varchar("storageKey", { length: 512 }).notNull(),
+    mimeType: varchar("mimeType", { length: 160 }).notNull(),
+    sizeBytes: int("sizeBytes").notNull(),
+    kind: mysqlEnum("kind", ["source", "document"]).notNull(),
+    extractedText: text("extractedText"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userCreatedIdx: index("assistant_files_user_created_idx").on(table.userId, table.createdAt),
+    userThreadIdx: index("assistant_files_user_thread_idx").on(table.userId, table.threadId),
   }),
 );
 
@@ -67,3 +99,5 @@ export const assistantMessages = mysqlTable(
 
 export type AssistantThread = typeof assistantThreads.$inferSelect;
 export type AssistantMessage = typeof assistantMessages.$inferSelect;
+export type AssistantProfile = typeof assistantProfiles.$inferSelect;
+export type AssistantFile = typeof assistantFiles.$inferSelect;

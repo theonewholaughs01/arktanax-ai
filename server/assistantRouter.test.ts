@@ -5,10 +5,14 @@ const mocks = vi.hoisted(() => ({
   appendConversationMessage: vi.fn(),
   createConversationThread: vi.fn(),
   deleteConversationThread: vi.fn(),
+  getAssistantFile: vi.fn(),
+  getAssistantProfile: vi.fn(),
   getConversationThread: vi.fn(),
   getThreadMessages: vi.fn(),
   listConversationThreads: vi.fn(),
   renameConversationThread: vi.fn(),
+  updateConversationMode: vi.fn(),
+  upsertAssistantProfile: vi.fn(),
   invokeLLM: vi.fn(),
 }));
 
@@ -16,10 +20,14 @@ vi.mock("./db", () => ({
   appendConversationMessage: mocks.appendConversationMessage,
   createConversationThread: mocks.createConversationThread,
   deleteConversationThread: mocks.deleteConversationThread,
+  getAssistantFile: mocks.getAssistantFile,
+  getAssistantProfile: mocks.getAssistantProfile,
   getConversationThread: mocks.getConversationThread,
   getThreadMessages: mocks.getThreadMessages,
   listConversationThreads: mocks.listConversationThreads,
   renameConversationThread: mocks.renameConversationThread,
+  updateConversationMode: mocks.updateConversationMode,
+  upsertAssistantProfile: mocks.upsertAssistantProfile,
 }));
 
 vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
@@ -34,6 +42,7 @@ const thread = {
   createdAt: new Date("2026-08-22T08:00:00Z"),
   updatedAt: new Date("2026-08-22T08:00:00Z"),
   lastMessageAt: new Date("2026-08-22T08:00:00Z"),
+  mode: "fast" as const,
 };
 
 function createContext(): TrpcContext {
@@ -57,6 +66,8 @@ function createContext(): TrpcContext {
 describe("assistantRouter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getAssistantProfile.mockResolvedValue(undefined);
+    mocks.getAssistantFile.mockResolvedValue(undefined);
   });
 
   it("persists a signed-in user’s prompt, hands active context to the LLM, and persists the reply", async () => {
@@ -72,7 +83,7 @@ describe("assistantRouter", () => {
     const caller = assistantRouter.createCaller(createContext());
     const result = await caller.sendMessage({ content: "Plan a focused workday" });
 
-    expect(mocks.createConversationThread).toHaveBeenCalledWith(USER_ID, "Plan a focused workday");
+    expect(mocks.createConversationThread).toHaveBeenCalledWith(USER_ID, "Plan a focused workday", "fast");
     expect(mocks.appendConversationMessage).toHaveBeenNthCalledWith(1, USER_ID, thread.id, "user", "Plan a focused workday");
     expect(mocks.invokeLLM).toHaveBeenCalledWith(expect.objectContaining({
       model: "gemini-3-flash-preview",

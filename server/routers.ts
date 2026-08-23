@@ -3,6 +3,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { assistantRouter } from "./assistantRouter";
+import { fileRouter } from "./fileRouter";
+import { profileRouter } from "./profileRouter";
 import { voiceRouter } from "./voiceRouter";
 
 export const appRouter = router({
@@ -19,6 +21,8 @@ export const appRouter = router({
     }),
   }),
   assistant: assistantRouter,
+  files: fileRouter,
+  profile: profileRouter,
   voice: voiceRouter,
 });
 

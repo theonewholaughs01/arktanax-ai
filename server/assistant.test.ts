@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARKTANAX_SYSTEM_PROMPT, buildAssistantMessages, deriveThreadTitle, extractLLMReply } from "./assistant";
+import { ARKTANAX_SYSTEM_PROMPT, buildAssistantMessages, deriveThreadTitle, extractLLMReply, maxTokensForMode } from "./assistant";
 
 describe("ARKTANAX assistant helpers", () => {
   it("builds an active conversation with the safety-bound assistant identity", () => {
@@ -8,7 +8,9 @@ describe("ARKTANAX assistant helpers", () => {
       { role: "assistant", content: "What are your three priorities?" },
     ]);
 
-    expect(messages[0]).toEqual({ role: "system", content: ARKTANAX_SYSTEM_PROMPT });
+    expect(messages[0]).toMatchObject({ role: "system" });
+    expect(String(messages[0]?.content)).toContain(ARKTANAX_SYSTEM_PROMPT);
+    expect(String(messages[0]?.content)).toContain("FAST MODE");
     expect(messages.slice(1)).toEqual([
       { role: "user", content: "Draft a concise daily plan." },
       { role: "assistant", content: "What are your three priorities?" },
@@ -25,5 +27,16 @@ describe("ARKTANAX assistant helpers", () => {
     expect(extractLLMReply("  Ready when you are.  ")).toBe("Ready when you are.");
     expect(extractLLMReply([{ type: "text", text: "First" }, { type: "text", text: "Second" }])).toBe("First\nSecond");
   });
-});
 
+  it("applies the selected operating mode and durable personal context", () => {
+    const messages = buildAssistantMessages(
+      [{ role: "user", content: "Review this project." }],
+      "code",
+      { displayName: "Olu", responseStyle: "detailed", focusAreas: "AI products", workingStyle: "Direct", personalInstructions: "Lead with the practical answer." },
+    );
+
+    expect(messages[0]?.content).toContain("CODE MODE");
+    expect(messages[0]?.content).toContain("Olu");
+    expect(maxTokensForMode("fast")).toBeLessThan(maxTokensForMode("deep"));
+  });
+});

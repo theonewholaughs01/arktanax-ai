@@ -12,14 +12,17 @@ import {
   ChevronRight,
   Command,
   Cpu,
+  FileText,
   LoaderCircle,
   MessageSquarePlus,
   Mic,
   MicOff,
   PanelLeft,
+  Paperclip,
   Plus,
-  Send,
-  SlidersHorizontal,
+ Send,
+  Settings2,
+ SlidersHorizontal,
   Square,
   Trash2,
   Volume2,
@@ -40,10 +43,27 @@ type PendingMessage = {
   threadId: number | null;
 };
 
+type OperatingMode = "fast" | "deep" | "code";
+type ResponseStyle = "brief" | "balanced" | "detailed";
+
+type ProfileDraft = {
+  displayName: string;
+  responseStyle: ResponseStyle;
+  focusAreas: string;
+  workingStyle: string;
+  personalInstructions: string;
+};
+
 const QUICK_STARTERS = [
   "Help me plan a focused workday.",
   "Turn my rough idea into a clear first draft.",
   "What should I prioritize this week?",
+];
+
+const OPERATING_MODES: Array<{ id: OperatingMode; label: string; description: string }> = [
+  { id: "fast", label: "Fast", description: "Direct answers, built for momentum" },
+  { id: "deep", label: "Deep", description: "Careful analysis and structured thinking" },
+  { id: "code", label: "Code", description: "Implementation, review, and technical planning" },
 ];
 
 const ACTIVITY_COPY: Record<AssistantActivity, { label: string; detail: string }> = {
@@ -92,11 +112,24 @@ export default function Home() {
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState("");
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
+  const [activeMode, setActiveMode] = useState<OperatingMode>("fast");
+  const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
+  const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
+  const [fileInsight, setFileInsight] = useState<string | null>(null);
+  const [lastResponseMs, setLastResponseMs] = useState<number | null>(null);
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>({
+    displayName: "",
+    responseStyle: "balanced",
+    focusAreas: "",
+    workingStyle: "",
+    personalInstructions: "",
+  });
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const threadsQuery = trpc.assistant.listThreads.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -109,6 +142,11 @@ export default function Home() {
   const sendMessageMutation = trpc.assistant.sendMessage.useMutation();
   const deleteThreadMutation = trpc.assistant.deleteThread.useMutation();
   const transcribeMutation = trpc.voice.transcribe.useMutation();
+  const profileQuery = trpc.profile.get.useQuery(undefined, { enabled: isAuthenticated });
+  const profileMutation = trpc.profile.update.useMutation();
+  const filesQuery = trpc.files.list.useQuery(undefined, { enabled: isAuthenticated });
+  const uploadFileMutation = trpc.files.upload.useMutation();
+  const analyzeFileMutation = trpc.files.analyze.useMutation();
 
   const threads = threadsQuery.data ?? [];
   const messages = threadQuery.data?.messages ?? [];
@@ -119,6 +157,18 @@ export default function Home() {
     () => availableVoices.find(voice => voice.voiceURI === selectedVoiceURI) || choosePreferredVoice(availableVoices),
     [availableVoices, selectedVoiceURI],
   );
+  const selectedFile = useMemo(
+    () => (filesQuery.data || []).find(file => file.id === selectedFileId),
+    [filesQuery.data, selectedFileId],
+  );
+
+  useEffect(() => {
+    if (activeThread?.mode) {
+      setActiveMode(activeThread.mode);
+      return;
+    }
+    if (profileQuery.data?.preferredMode) setActiveMode(profileQuery.data.preferredMode);
+  }, [activeThread?.mode, profileQuery.data?.preferredMode]);
 
   useEffect(() => {
     if (activeThreadId === null && threads.length > 0) {
@@ -213,6 +263,7 @@ export default function Home() {
     async (rawPrompt: string) => {
       const content = rawPrompt.trim();
       if (!content || sendMessageMutation.isPending) return;
+      const requestStartedAt = performance.now();
 
       stopSpeaking();
       setComposer("");
@@ -223,9 +274,12 @@ export default function Home() {
         const response = await sendMessageMutation.mutateAsync({
           threadId: activeThreadId ?? undefined,
           content,
+          mode: activeMode,
+          fileId: selectedFileId ?? undefined,
         });
         setActiveThreadId(response.threadId);
         setPendingMessage(null);
+        setLastResponseMs(Math.round(performance.now() - requestStartedAt));
         await Promise.all([
           utils.assistant.listThreads.invalidate(),
           utils.assistant.getThread.invalidate({ threadId: response.threadId }),
@@ -239,14 +293,14 @@ export default function Home() {
         toast.error("ARKTANAX could not respond. Your prompt is ready to retry.");
       }
     },
-    [activeThreadId, sendMessageMutation, speakReply, stopSpeaking, utils.assistant.getThread, utils.assistant.listThreads],
+    [activeMode, activeThreadId, selectedFileId, sendMessageMutation, speakReply, stopSpeaking, utils.assistant.getThread, utils.assistant.listThreads],
   );
 
   const createNewThread = useCallback(async () => {
     if (!isAuthenticated) return startLogin();
     stopSpeaking();
     try {
-      const thread = await createThreadMutation.mutateAsync({});
+      const thread = await createThreadMutation.mutateAsync({ mode: activeMode });
       setActiveThreadId(thread.id);
       setComposer("");
       setActivity("idle");
@@ -255,7 +309,79 @@ export default function Home() {
       console.error(error);
       toast.error("Unable to start a new conversation.");
     }
-  }, [createThreadMutation, isAuthenticated, stopSpeaking, utils.assistant.listThreads]);
+  }, [activeMode, createThreadMutation, isAuthenticated, stopSpeaking, utils.assistant.listThreads]);
+
+  const openProfilePanel = useCallback(() => {
+    const profile = profileQuery.data;
+    setProfileDraft({
+      displayName: profile?.displayName || user?.name || "",
+      responseStyle: profile?.responseStyle || "balanced",
+      focusAreas: profile?.focusAreas || "",
+      workingStyle: profile?.workingStyle || "",
+      personalInstructions: profile?.personalInstructions || "",
+    });
+    setIsProfilePanelOpen(true);
+  }, [profileQuery.data, user?.name]);
+
+  const saveProfile = useCallback(async () => {
+    try {
+      await profileMutation.mutateAsync({
+        displayName: profileDraft.displayName || null,
+        responseStyle: profileDraft.responseStyle,
+        focusAreas: profileDraft.focusAreas || null,
+        workingStyle: profileDraft.workingStyle || null,
+        personalInstructions: profileDraft.personalInstructions || null,
+        preferredMode: activeMode,
+      });
+      await profileQuery.refetch();
+      setIsProfilePanelOpen(false);
+      toast.success("ARKTANAX personal profile updated.");
+    } catch (error) {
+      console.error(error);
+      toast.error("ARKTANAX could not save your personal profile.");
+    }
+  }, [activeMode, profileDraft, profileMutation, profileQuery]);
+
+  const uploadSelectedFile = useCallback(async (file: File) => {
+    if (!isAuthenticated) return startLogin();
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("The no-cost file workspace accepts files up to 8 MB.");
+      return;
+    }
+    try {
+      const fileData = await blobToDataUrl(file);
+      const uploaded = await uploadFileMutation.mutateAsync({
+        fileData,
+        fileName: file.name,
+        mimeType: file.type || undefined,
+        threadId: activeThreadId ?? undefined,
+      });
+      setSelectedFileId(uploaded.id);
+      await filesQuery.refetch();
+      toast.success(`${uploaded.fileName} is ready for ARKTANAX.`);
+    } catch (error) {
+      console.error(error);
+      toast.error("ARKTANAX could not add that file. Use a text/source file or PDF up to 8 MB.");
+    }
+  }, [activeThreadId, filesQuery, isAuthenticated, uploadFileMutation]);
+
+  const analyzeSelectedFile = useCallback(async () => {
+    if (!selectedFile) {
+      toast.error("Attach or select a file before asking ARKTANAX to analyze it.");
+      return;
+    }
+    try {
+      const result = await analyzeFileMutation.mutateAsync({
+        fileId: selectedFile.id,
+        prompt: activeMode === "code" ? "Review this file for correctness, structure, risks, and the most valuable next changes." : "Summarize this file, explain its main points, and identify the most useful next steps.",
+      });
+      setFileInsight(result.analysis);
+      toast.success(`ARKTANAX analyzed ${selectedFile.fileName}.`);
+    } catch (error) {
+      console.error(error);
+      toast.error("ARKTANAX could not analyze that file.");
+    }
+  }, [activeMode, analyzeFileMutation, selectedFile]);
 
   const removeCurrentThread = useCallback(async () => {
     if (!activeThreadId) return;
@@ -411,6 +537,11 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={openProfilePanel}
+            className="hidden h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 text-xs text-violet-100/75 transition hover:bg-white/[0.12] hover:text-white sm:flex"
+            aria-label="Edit ARKTANAX personal profile"
+          ><Settings2 className="h-3.5 w-3.5" /> Profile</button>
           <div className="hidden text-right sm:block">
             <p className="text-[10px] uppercase tracking-[0.24em] text-violet-100/55">Continuous context</p>
             <p className="mt-1 text-xs text-white/75">{threads.length} saved {threads.length === 1 ? "thread" : "threads"}</p>
@@ -490,11 +621,46 @@ export default function Home() {
             </h1>
           </div>
           <p className="max-w-48 text-left text-[11px] leading-relaxed text-violet-100/55 sm:pt-2 sm:text-right">
-            {status.detail}. ARKTANAX only acts within this conversation until integrations are connected.
+            {status.detail}{lastResponseMs && activity === "idle" ? ` · Last reply ${(lastResponseMs / 1000).toFixed(1)}s` : ""}. ARKTANAX only acts within this conversation until integrations are connected.
           </p>
-        </div>
+          </div>
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-[10px] font-medium uppercase tracking-[0.2em] text-violet-100/45">Gemini operating mode</span>
+            {OPERATING_MODES.map(mode => (
+              <button
+                key={mode.id}
+                onClick={() => setActiveMode(mode.id)}
+                title={mode.description}
+                className={cn(
+                  "rounded-full border px-3.5 py-2 text-xs transition",
+                  activeMode === mode.id ? "border-teal-100/35 bg-teal-100/[0.13] text-teal-50" : "border-white/10 bg-white/[0.04] text-violet-100/60 hover:bg-white/[0.09] hover:text-white",
+                )}
+              >{mode.label}</button>
+            ))}
+            <button onClick={openProfilePanel} className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-violet-100/55 transition hover:bg-white/10 hover:text-white sm:hidden" aria-label="Edit ARKTANAX personal profile"><Settings2 className="h-3.5 w-3.5" /></button>
+          </div>
 
-        <div className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-white/10 bg-[#13092a]/35 backdrop-blur-xl shadow-[0_30px_80px_rgba(1,0,12,0.28)]">
+          {activeMode === "code" && (
+            <section className="mb-6 grid gap-3 rounded-2xl border border-teal-100/15 bg-teal-100/[0.045] p-4 sm:grid-cols-[1fr_auto] sm:items-start">
+              <div>
+                <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-teal-100/70"><Cpu className="h-3.5 w-3.5" /> Code workspace</div>
+                <p className="mt-2 text-sm leading-relaxed text-violet-100/75">Attach source or a PDF, ask for an implementation, then use ARKTANAX to review or refine the result. Code execution remains deliberately off until an isolated Code Lab is available.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(filesQuery.data || []).slice(0, 5).map(file => (
+                    <button key={file.id} onClick={() => { setSelectedFileId(file.id); setFileInsight(null); }} className={cn("flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition", selectedFileId === file.id ? "border-teal-100/40 bg-teal-100/[0.14] text-teal-50" : "border-white/10 bg-white/[0.04] text-violet-100/65 hover:bg-white/[0.1] hover:text-white")}><FileText className="h-3 w-3" />{file.fileName}</button>
+                  ))}
+                  {(filesQuery.data || []).length === 0 && <span className="text-xs text-violet-100/45">No workspace files yet. Attach source or a PDF below.</span>}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <button type="button" onClick={() => setComposer("Review the attached file. Identify the highest-impact defects, explain why they matter, and show the smallest safe fix.")} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-violet-100/75 transition hover:bg-white/10 hover:text-white">Review & refine</button>
+                <button type="button" onClick={() => void analyzeSelectedFile()} disabled={!selectedFile || analyzeFileMutation.isPending} className="rounded-xl bg-teal-100/[0.14] px-3 py-2 text-xs font-medium text-teal-50 transition hover:bg-teal-100/[0.22] disabled:cursor-not-allowed disabled:opacity-45">{analyzeFileMutation.isPending ? "Analyzing…" : "Analyze file"}</button>
+              </div>
+              {fileInsight && <div className="sm:col-span-2 rounded-xl border border-white/8 bg-black/15 p-4"><p className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-teal-100/55">File insight</p><div className="arktanax-prose text-sm leading-6 text-violet-50"><Streamdown>{fileInsight}</Streamdown></div></div>}
+            </section>
+          )}
+
+          <div className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-white/10 bg-[#13092a]/35 backdrop-blur-xl shadow-[0_30px_80px_rgba(1,0,12,0.28)]">
           <div className="flex items-center justify-between border-b border-white/8 px-5 py-4 sm:px-6">
             <div className="flex items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full border border-teal-100/15 bg-teal-100/[0.08] text-teal-100"><Waves className="h-3.5 w-3.5" /></span>
@@ -612,6 +778,31 @@ export default function Home() {
             className="border-t border-white/8 px-4 py-4 sm:px-5"
           >
             <div className="rounded-2xl border border-white/10 bg-[#080411]/45 p-2 shadow-inner shadow-black/20 transition focus-within:border-teal-100/35 focus-within:bg-[#090513]/70">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.css,.html,.htm,.sql,.yml,.yaml,.sh,.bash,.pdf,text/plain,text/markdown,application/json,text/javascript,application/javascript,application/typescript,text/typescript,text/x-python,text/css,text/html,application/pdf"
+                className="hidden"
+                onChange={event => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) void uploadSelectedFile(file);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">
+                {selectedFile ? (
+                  <span className="flex min-w-0 items-center gap-2 rounded-lg border border-teal-100/15 bg-teal-100/[0.08] px-2.5 py-1.5 text-[11px] text-teal-50">
+                    <FileText className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{selectedFile.fileName}</span><span className="hidden text-teal-100/55 sm:inline">{selectedFile.kind === "source" ? "source context" : "PDF context"}</span>
+                    <button type="button" onClick={() => setSelectedFileId(null)} className="ml-1 text-teal-50/70 transition hover:text-white" aria-label="Remove attached file"><X className="h-3.5 w-3.5" /></button>
+                  </span>
+                ) : <span className="text-[10px] uppercase tracking-[0.16em] text-violet-100/35">Source files and PDFs</span>}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadFileMutation.isPending}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] text-violet-100/65 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >{uploadFileMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}{uploadFileMutation.isPending ? "Adding…" : "Attach"}</button>
+              </div>
               <div className="flex items-end gap-2">
                 <button
                   type="button"
@@ -634,7 +825,7 @@ export default function Home() {
                   value={composer}
                   onChange={event => setComposer(event.target.value)}
                   onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendPrompt(composer); } }}
-                  placeholder={activity === "listening" ? "Listening… release the microphone when finished" : "Ask ARKTANAX anything…"}
+                  placeholder={activity === "listening" ? "Listening… release the microphone when finished" : activeMode === "code" ? "Describe the code task, review, or project you need…" : "Ask ARKTANAX anything…"}
                   rows={1}
                   className="min-h-11 max-h-32 flex-1 resize-none bg-transparent px-2 py-3 text-[15px] leading-5 text-white placeholder:text-violet-100/35 focus:outline-none"
                   aria-label="Message ARKTANAX"
@@ -650,7 +841,7 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-between px-2 pb-1 pt-2 text-[10px] uppercase tracking-[0.16em] text-violet-100/35">
                 <span className="flex items-center gap-1.5"><MicOff className="h-3 w-3" /> Hold mic to speak</span>
-                <span>Enter to send · Shift + Enter for a line break</span>
+                <span>8 MB max · Source/PDF only</span>
               </div>
             </div>
           </form>
@@ -662,6 +853,43 @@ export default function Home() {
           {activity === "error" && <button onClick={() => setActivity("idle")} className="flex items-center gap-2 text-amber-100/75 hover:text-amber-50"><AlertTriangle className="h-3 w-3" /> Reset status</button>}
         </footer>
       </section>
+      {isProfilePanelOpen && (
+        <div className="fixed inset-0 z-40 flex justify-end bg-[#05020a]/55 p-3 backdrop-blur-sm sm:p-6">
+          <section className="flex h-full w-full max-w-xl flex-col overflow-hidden rounded-[1.5rem] border border-white/12 bg-[#10061f]/95 shadow-2xl">
+            <header className="flex items-start justify-between border-b border-white/8 px-6 py-5">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-teal-100/55">Personal operating profile</p>
+                <h2 className="mt-1 text-xl font-medium text-white">Make ARKTANAX yours</h2>
+                <p className="mt-2 max-w-md text-xs leading-relaxed text-violet-100/55">These private preferences shape ARKTANAX across your saved conversations.</p>
+              </div>
+              <button onClick={() => setIsProfilePanelOpen(false)} className="rounded-full p-2 text-violet-100/55 transition hover:bg-white/10 hover:text-white" aria-label="Close personal profile"><X className="h-4 w-4" /></button>
+            </header>
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+              <label className="block text-xs text-violet-100/70">What should ARKTANAX call you?
+                <input value={profileDraft.displayName} onChange={event => setProfileDraft(draft => ({ ...draft, displayName: event.target.value }))} placeholder="Your preferred name" className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm text-white outline-none transition focus:border-teal-100/40" />
+              </label>
+              <label className="block text-xs text-violet-100/70">Response detail
+                <select value={profileDraft.responseStyle} onChange={event => setProfileDraft(draft => ({ ...draft, responseStyle: event.target.value as ResponseStyle }))} className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm text-white outline-none transition focus:border-teal-100/40">
+                  <option value="brief">Brief — only the essentials</option><option value="balanced">Balanced — concise with context</option><option value="detailed">Detailed — deep and structured</option>
+                </select>
+              </label>
+              <label className="block text-xs text-violet-100/70">Focus areas
+                <textarea value={profileDraft.focusAreas} onChange={event => setProfileDraft(draft => ({ ...draft, focusAreas: event.target.value }))} placeholder="Your current projects, interests, goals, tools, or subjects…" rows={3} className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm leading-6 text-white outline-none transition focus:border-teal-100/40" />
+              </label>
+              <label className="block text-xs text-violet-100/70">Working style
+                <textarea value={profileDraft.workingStyle} onChange={event => setProfileDraft(draft => ({ ...draft, workingStyle: event.target.value }))} placeholder="How you prefer plans, explanations, decisions, and collaboration…" rows={3} className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm leading-6 text-white outline-none transition focus:border-teal-100/40" />
+              </label>
+              <label className="block text-xs text-violet-100/70">Anything ARKTANAX should always know?
+                <textarea value={profileDraft.personalInstructions} onChange={event => setProfileDraft(draft => ({ ...draft, personalInstructions: event.target.value }))} placeholder="Tone, boundaries, priorities, routines, or preferences…" rows={4} className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm leading-6 text-white outline-none transition focus:border-teal-100/40" />
+              </label>
+            </div>
+            <footer className="flex items-center justify-between gap-4 border-t border-white/8 px-6 py-4">
+              <p className="text-[10px] leading-relaxed text-violet-100/40">Code mode generates and reviews code. A future isolated Code Lab is required before ARKTANAX can run arbitrary code.</p>
+              <button onClick={() => void saveProfile()} disabled={profileMutation.isPending} className="shrink-0 rounded-xl bg-white px-4 py-2.5 text-xs font-semibold text-[#170a2a] transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50">{profileMutation.isPending ? "Saving…" : "Save profile"}</button>
+            </footer>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

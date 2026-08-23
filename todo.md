@@ -27,3 +27,17 @@
 - [x] Add direct unit coverage for ARKTANAX database helpers, including user-scoped thread and message queries, ordering, append updates, and deletion.
 - [x] Add direct test coverage for ARKTANAX thread listing, scoped thread retrieval, and existing/missing deletion outcomes.
 - [ ] Confirm microphone-denial recovery, conversation restoration after refresh, refined voice-panel persistence, voice preview, and immediate Stop behavior in the published browser experience.
+- [x] Reduce ARKTANAX response latency and add clear in-progress feedback for longer requests.
+- [x] Add persistent, user-owned personal preferences and working modes that shape ARKTANAX’s behavior.
+- [x] Add a structured coding workspace for requesting, reviewing, and refining small or large code tasks.
+- [x] Add secure file upload and analysis with clear supported-type and file-size boundaries.
+- [ ] Design and implement a safe, explicitly controlled code-execution route rather than pretending ARKTANAX can execute arbitrary code by default.
+- [ ] Validate the upgraded personal-operator workflows, execution limits, and error states.
+- [ ] Provision and connect a dedicated isolated code-execution environment for approved ARKTANAX jobs.
+- [x] Retain Gemini as ARKTANAX’s core model while adding visible Fast, Deep, and Code operating modes.
+- [x] Defer the paid isolated Code Lab and clearly state that no-cost ARKTANAX can generate, review, and analyze code but does not execute arbitrary code.
+- [x] Implement the no-cost personal modes, preference memory, response-speed improvements, file analysis workspace, and code-generation workflow.
+- [x] Add a dedicated coding workspace with task context, reusable file/project visibility, and a focused review/refine path.
+- [x] Expose uploaded files in the ARKTANAX interface with re-selection and an explicit Analyze file action.
+- [ ] Validate a concrete Fast-mode latency improvement and visible response-progress behavior in the browser.
+- [ ] Interactively confirm Fast-mode progress feedback and last-reply timing after a real browser conversation completes.

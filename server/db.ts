@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { assistantMessages, assistantThreads, InsertUser, users } from "../drizzle/schema";
+import { assistantFiles, assistantMessages, assistantProfiles, assistantThreads, InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -116,10 +116,10 @@ export function createConversationDbHelpers(db: Database) {
 
     getConversationThread,
 
-    async createConversationThread(userId: number, title: string) {
+    async createConversationThread(userId: number, title: string, mode: "fast" | "deep" | "code" = "fast") {
       const [created] = await db
         .insert(assistantThreads)
-        .values({ userId, title })
+        .values({ userId, title, mode })
         .$returningId();
       const thread = await getConversationThread(userId, created.id);
       if (!thread) throw new Error("Conversation could not be created.");
@@ -133,6 +133,16 @@ export function createConversationDbHelpers(db: Database) {
         .where(and(eq(assistantThreads.id, threadId), eq(assistantThreads.userId, userId)));
       const thread = await getConversationThread(userId, threadId);
       if (!thread) throw new Error("Conversation could not be renamed.");
+      return thread;
+    },
+
+    async updateConversationMode(userId: number, threadId: number, mode: "fast" | "deep" | "code") {
+      await db
+        .update(assistantThreads)
+        .set({ mode, updatedAt: new Date() })
+        .where(and(eq(assistantThreads.id, threadId), eq(assistantThreads.userId, userId)));
+      const thread = await getConversationThread(userId, threadId);
+      if (!thread) throw new Error("Conversation mode could not be updated.");
       return thread;
     },
 
@@ -190,11 +200,14 @@ export const listConversationThreads = (userId: number) =>
 export const getConversationThread = (userId: number, threadId: number) =>
   withConversationDb(helpers => helpers.getConversationThread(userId, threadId));
 
-export const createConversationThread = (userId: number, title: string) =>
-  withConversationDb(helpers => helpers.createConversationThread(userId, title));
+export const createConversationThread = (userId: number, title: string, mode: "fast" | "deep" | "code" = "fast") =>
+  withConversationDb(helpers => helpers.createConversationThread(userId, title, mode));
 
 export const renameConversationThread = (userId: number, threadId: number, title: string) =>
   withConversationDb(helpers => helpers.renameConversationThread(userId, threadId, title));
+
+export const updateConversationMode = (userId: number, threadId: number, mode: "fast" | "deep" | "code") =>
+  withConversationDb(helpers => helpers.updateConversationMode(userId, threadId, mode));
 
 export const getThreadMessages = (userId: number, threadId: number, limit = 100) =>
   withConversationDb(helpers => helpers.getThreadMessages(userId, threadId, limit));
@@ -204,3 +217,60 @@ export const appendConversationMessage = (userId: number, threadId: number, role
 
 export const deleteConversationThread = (userId: number, threadId: number) =>
   withConversationDb(helpers => helpers.deleteConversationThread(userId, threadId));
+
+export async function getAssistantProfile(userId: number) {
+  const db = requireDb(await getDb());
+  const result = await db.select().from(assistantProfiles).where(eq(assistantProfiles.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function upsertAssistantProfile(
+  userId: number,
+  input: Partial<{
+    displayName: string | null;
+    preferredMode: "fast" | "deep" | "code";
+    responseStyle: "brief" | "balanced" | "detailed";
+    focusAreas: string | null;
+    workingStyle: string | null;
+    personalInstructions: string | null;
+  }>,
+) {
+  const db = requireDb(await getDb());
+  const values = { userId, ...input };
+  await db.insert(assistantProfiles).values(values).onDuplicateKeyUpdate({
+    set: { ...input, updatedAt: new Date() },
+  });
+  const profile = await getAssistantProfile(userId);
+  if (!profile) throw new Error("Personal profile could not be saved.");
+  return profile;
+}
+
+export async function createAssistantFile(
+  userId: number,
+  input: {
+    threadId?: number;
+    fileName: string;
+    storageKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    kind: "source" | "document";
+    extractedText?: string | null;
+  },
+) {
+  const db = requireDb(await getDb());
+  const [created] = await db.insert(assistantFiles).values({ userId, ...input }).$returningId();
+  const result = await db.select().from(assistantFiles).where(and(eq(assistantFiles.id, created.id), eq(assistantFiles.userId, userId))).limit(1);
+  if (!result[0]) throw new Error("File could not be saved.");
+  return result[0];
+}
+
+export async function listAssistantFiles(userId: number) {
+  const db = requireDb(await getDb());
+  return db.select().from(assistantFiles).where(eq(assistantFiles.userId, userId)).orderBy(desc(assistantFiles.createdAt));
+}
+
+export async function getAssistantFile(userId: number, fileId: number) {
+  const db = requireDb(await getDb());
+  const result = await db.select().from(assistantFiles).where(and(eq(assistantFiles.id, fileId), eq(assistantFiles.userId, userId))).limit(1);
+  return result[0];
+}

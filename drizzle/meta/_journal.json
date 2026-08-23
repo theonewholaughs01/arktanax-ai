@@ -15,6 +15,20 @@
       "when": 1787442263387,
       "tag": "0001_redundant_moondragon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787468535256,
+      "tag": "0002_mean_agent_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1787468777288,
+      "tag": "0003_sloppy_korg",
+      "breakpoints": true
     }
   ]
 }
