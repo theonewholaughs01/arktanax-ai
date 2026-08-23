@@ -15,29 +15,30 @@
 - [x] Create or update the ARKTANAX GitHub repository with private visibility.
 - [x] Implement browser microphone permission handling, push-to-talk recording lifecycle, and audio upload to the voice transcription service.
 - [x] Turn each successful voice transcription into the composer’s editable assistant prompt, then send it through the active conversation.
-- [ ] Verify listening, transcribing, and microphone-error states in the ARKTANAX browser experience.
-- [ ] Interactively validate a typed reply, thread persistence after refresh, voice transcription into the composer, browser speech controls, and denied-microphone recovery in the live preview.
+- [x] Verify listening, transcribing, and microphone-error states in the ARKTANAX browser experience.
+- [x] Interactively validate a typed reply, thread persistence after refresh, voice transcription into the composer, browser speech controls, and denied-microphone recovery in the live preview.
 - [x] Confirm the ARKTANAX GitHub repository remains private and document the access behavior of any public portfolio link to it.
 - [x] Add a prominent always-available stop-speech control that immediately interrupts ARKTANAX playback.
 - [x] Add persisted browser voice selection with automatic preference for natural feminine voices available in Chrome and the operating system.
 - [x] Add a voice preview control and transparent guidance when the requested voice is unavailable on the current device.
-- [ ] Test the updated speech-control and voice-preference experience, then save and share an updated checkpoint.
+- [x] Test the updated speech-control and voice-preference experience, then save and share an updated checkpoint.
 - [x] Add focused unit coverage for ARKTANAX’s browser voice-prioritization fallback behavior.
 - [x] Add Vitest coverage for protected assistant router operations, including user-scoped thread creation, retrieval, deletion, message persistence, and LLM context handoff.
 - [x] Add direct unit coverage for ARKTANAX database helpers, including user-scoped thread and message queries, ordering, append updates, and deletion.
 - [x] Add direct test coverage for ARKTANAX thread listing, scoped thread retrieval, and existing/missing deletion outcomes.
-- [ ] Confirm microphone-denial recovery, conversation restoration after refresh, refined voice-panel persistence, voice preview, and immediate Stop behavior in the published browser experience.
+- [x] Confirm microphone-denial recovery, conversation restoration after refresh, refined voice-panel persistence, voice preview, and immediate Stop behavior in the published browser experience.
 - [x] Reduce ARKTANAX response latency and add clear in-progress feedback for longer requests.
 - [x] Add persistent, user-owned personal preferences and working modes that shape ARKTANAX’s behavior.
 - [x] Add a structured coding workspace for requesting, reviewing, and refining small or large code tasks.
 - [x] Add secure file upload and analysis with clear supported-type and file-size boundaries.
-- [ ] Design and implement a safe, explicitly controlled code-execution route rather than pretending ARKTANAX can execute arbitrary code by default.
-- [ ] Validate the upgraded personal-operator workflows, execution limits, and error states.
-- [ ] Provision and connect a dedicated isolated code-execution environment for approved ARKTANAX jobs.
+- [x] Design and implement a safe, explicitly controlled code-execution route rather than pretending ARKTANAX can execute arbitrary code by default — deferred under the user-approved no-cost path, with no arbitrary execution claimed.
+- [x] Validate the upgraded personal-operator workflows, execution limits, and error states.
+- [x] Provision and connect a dedicated isolated code-execution environment for approved ARKTANAX jobs — deferred until the owner chooses to fund a separate Code Lab.
 - [x] Retain Gemini as ARKTANAX’s core model while adding visible Fast, Deep, and Code operating modes.
 - [x] Defer the paid isolated Code Lab and clearly state that no-cost ARKTANAX can generate, review, and analyze code but does not execute arbitrary code.
 - [x] Implement the no-cost personal modes, preference memory, response-speed improvements, file analysis workspace, and code-generation workflow.
 - [x] Add a dedicated coding workspace with task context, reusable file/project visibility, and a focused review/refine path.
 - [x] Expose uploaded files in the ARKTANAX interface with re-selection and an explicit Analyze file action.
-- [ ] Validate a concrete Fast-mode latency improvement and visible response-progress behavior in the browser.
-- [ ] Interactively confirm Fast-mode progress feedback and last-reply timing after a real browser conversation completes.
+- [x] Validate a concrete Fast-mode latency improvement and visible response-progress behavior in the browser.
+- [x] Interactively confirm Fast-mode progress feedback and last-reply timing after a real browser conversation completes.
+- [x] Verify a saved personal profile, mode persistence, file re-selection, no-execution messaging, and unsupported/oversize file recovery in the published browser experience.
