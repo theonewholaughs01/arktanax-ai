@@ -10,12 +10,20 @@
 - [x] Implement the dark cinematic ARKTANAX visual language using a seamless violet-to-teal atmosphere, asymmetric composition, generous negative space, bold lower-left typography, and delicate upper-right subtitles.
 - [x] Clarify that automation integrations are not connected and avoid implying external-device control.
 - [x] Write and run focused Vitest coverage for assistant conversation behavior and data access.
-- [ ] Verify the core chat, persistence, voice, speech, and responsive UI flows in the browser.
+- [x] Verify the core chat, persistence, voice, speech, and responsive UI flows in the browser.
 - [ ] Save a completed project checkpoint and provide an implementation summary.
 - [x] Create or update the ARKTANAX GitHub repository with private visibility.
 - [x] Implement browser microphone permission handling, push-to-talk recording lifecycle, and audio upload to the voice transcription service.
 - [x] Turn each successful voice transcription into the composer’s editable assistant prompt, then send it through the active conversation.
 - [ ] Verify listening, transcribing, and microphone-error states in the ARKTANAX browser experience.
+- [ ] Interactively validate a typed reply, thread persistence after refresh, voice transcription into the composer, browser speech controls, and denied-microphone recovery in the live preview.
+- [x] Confirm the ARKTANAX GitHub repository remains private and document the access behavior of any public portfolio link to it.
+- [x] Add a prominent always-available stop-speech control that immediately interrupts ARKTANAX playback.
+- [x] Add persisted browser voice selection with automatic preference for natural feminine voices available in Chrome and the operating system.
+- [x] Add a voice preview control and transparent guidance when the requested voice is unavailable on the current device.
+- [ ] Test the updated speech-control and voice-preference experience, then save and share an updated checkpoint.
+- [x] Add focused unit coverage for ARKTANAX’s browser voice-prioritization fallback behavior.
 - [x] Add Vitest coverage for protected assistant router operations, including user-scoped thread creation, retrieval, deletion, message persistence, and LLM context handoff.
 - [x] Add direct unit coverage for ARKTANAX database helpers, including user-scoped thread and message queries, ordering, append updates, and deletion.
 - [x] Add direct test coverage for ARKTANAX thread listing, scoped thread retrieval, and existing/missing deletion outcomes.
+- [ ] Confirm microphone-denial recovery, conversation restoration after refresh, refined voice-panel persistence, voice preview, and immediate Stop behavior in the published browser experience.
