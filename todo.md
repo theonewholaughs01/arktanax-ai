@@ -42,3 +42,23 @@
 - [x] Validate a concrete Fast-mode latency improvement and visible response-progress behavior in the browser.
 - [x] Interactively confirm Fast-mode progress feedback and last-reply timing after a real browser conversation completes.
 - [x] Verify a saved personal profile, mode persistence, file re-selection, no-execution messaging, and unsupported/oversize file recovery in the published browser experience.
+- [ ] Inspect the public ARKTANAX worker’s safe callable contract and determine whether it is suitable for private-app premium audio.
+- [ ] Reuse only the approved public prototype audio-playback, stop, browser-fallback, and audio-reactive visual-feedback patterns in private ARKTANAX.
+- [ ] Keep third-party worker credentials and any AI/provider secrets out of the private ARKTANAX client and GitHub repository.
+- [x] Simplify the public GitHub profile README and remove stale references to deleted public ARKTANAX and Discord-bot repositories.
+- [x] Improve the public Genealogy of Jesus project’s factual accuracy, data structure, accessibility, and user experience while preserving its original design direction.
+- [x] Remove the numbered Mary entry from the primary Matthew chain and retain Mary only as a contextual women-study record.
+- [x] Audit remaining card data for precise unsourced dates and unsupported tradition or devotional claims, replacing them with textual facts or explicit source-aware labels.
+- [x] Run a final source-aware data and interaction QA pass before publishing the corrected Genealogy release.
+- [x] Rewrite remaining card teasers and narratives so devotional interpretation, historical reconstruction, and tradition are explicitly labeled instead of presented as textual fact.
+- [x] Complete a card-by-card content pass across the full genealogy dataset against the source-aware accuracy standard.
+- [x] Synchronize the public portfolio’s Genealogy entry with the updated interactive study and verify the visitor-facing route.
+- [x] Redesign the public GitHub portfolio to retain its updated content while matching the reference portfolio’s visual style, layout, and user experience.
+- [x] Rebuild the portfolio homepage with the reference-inspired light editorial layout, sticky navigation, theme control, code-panel hero, work cards, principles, and contact section.
+- [x] Preserve and improve public project navigation, including the live Genealogy study, Python demo, project repositories, and the existing contact address.
+- [x] Verify the redesigned page locally and on the public GitHub Pages route at desktop and mobile widths.
+- [x] Verify the live GitHub Pages portfolio at a mobile viewport width after the final revision is deployed.
+- [x] Verify the live GitHub Pages portfolio at a mobile viewport width after the final revision is deployed.
+- [x] Disable ARKTANAX assistant text-to-speech so replies remain text-only and remove obsolete playback controls.
+- [x] Verify text-only replies do not call browser speech synthesis while user speech transcription remains available.
+- [x] Set “I build useful things with code.” as the primary hero message in the redesigned public portfolio.

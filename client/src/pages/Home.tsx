@@ -2,7 +2,6 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import { choosePreferredVoice } from "@/lib/voice";
 import {
   Activity,
   AlertTriangle,
@@ -20,14 +19,9 @@ import {
   PanelLeft,
   Paperclip,
   Plus,
- Send,
+	 Send,
   Settings2,
- SlidersHorizontal,
-  Square,
   Trash2,
-  Volume2,
-  VolumeX,
-  Waves,
   Wifi,
   X,
   Zap,
@@ -36,7 +30,7 @@ import { Streamdown } from "streamdown";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-type AssistantActivity = "idle" | "listening" | "transcribing" | "thinking" | "speaking" | "error";
+type AssistantActivity = "idle" | "listening" | "transcribing" | "thinking" | "error";
 
 type PendingMessage = {
   content: string;
@@ -68,10 +62,9 @@ const OPERATING_MODES: Array<{ id: OperatingMode; label: string; description: st
 
 const ACTIVITY_COPY: Record<AssistantActivity, { label: string; detail: string }> = {
   idle: { label: "Standing by", detail: "Context is ready" },
-  listening: { label: "Listening", detail: "Hold to speak" },
+  listening: { label: "Listening", detail: "Recording a voice prompt" },
   transcribing: { label: "Transcribing", detail: "Converting your voice" },
   thinking: { label: "Thinking", detail: "Working through context" },
-  speaking: { label: "Speaking", detail: "Voice response active" },
   error: { label: "Attention needed", detail: "Try your request again" },
 };
 
@@ -82,15 +75,6 @@ function blobToDataUrl(blob: Blob) {
     reader.onerror = () => reject(new Error("Unable to read microphone recording."));
     reader.readAsDataURL(blob);
   });
-}
-
-function plainSpeech(text: string) {
-  return text
-    .replace(/```[\s\S]*?```/g, "Code block omitted.")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_#>`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function timeLabel(date: Date) {
@@ -107,11 +91,7 @@ export default function Home() {
   const [composer, setComposer] = useState("");
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(null);
   const [activity, setActivity] = useState<AssistantActivity>("idle");
-  const [isMuted, setIsMuted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceURI, setSelectedVoiceURI] = useState("");
-  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<OperatingMode>("fast");
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
@@ -152,11 +132,6 @@ export default function Home() {
   const messages = threadQuery.data?.messages ?? [];
   const activeThread = threadQuery.data?.thread;
   const status = ACTIVITY_COPY[activity];
-  const speechAvailable = typeof window !== "undefined" && "speechSynthesis" in window;
-  const selectedVoice = useMemo(
-    () => availableVoices.find(voice => voice.voiceURI === selectedVoiceURI) || choosePreferredVoice(availableVoices),
-    [availableVoices, selectedVoiceURI],
-  );
   const selectedFile = useMemo(
     () => (filesQuery.data || []).find(file => file.id === selectedFileId),
     [filesQuery.data, selectedFileId],
@@ -177,87 +152,14 @@ export default function Home() {
   }, [activeThreadId, threads]);
 
   useEffect(() => {
-    if (!speechAvailable) return;
-
-    const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices();
-      setAvailableVoices(voices);
-      setSelectedVoiceURI(currentVoiceURI => {
-        if (currentVoiceURI && voices.some(voice => voice.voiceURI === currentVoiceURI)) {
-          return currentVoiceURI;
-        }
-
-        const storedVoiceURI = window.localStorage.getItem("arktanax-voice-uri");
-        if (storedVoiceURI && voices.some(voice => voice.voiceURI === storedVoiceURI)) {
-          return storedVoiceURI;
-        }
-
-        return choosePreferredVoice(voices)?.voiceURI || "";
-      });
-    };
-
-    loadVoices();
-    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
-  }, [speechAvailable]);
-
-  useEffect(() => {
-    if (selectedVoiceURI) window.localStorage.setItem("arktanax-voice-uri", selectedVoiceURI);
-  }, [selectedVoiceURI]);
-
-  useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, pendingMessage, sendMessageMutation.isPending]);
 
   useEffect(() => {
     return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
       mediaStreamRef.current?.getTracks().forEach(track => track.stop());
     };
   }, []);
-
-  const stopSpeaking = useCallback(() => {
-    if (speechAvailable) window.speechSynthesis.cancel();
-    if (activity === "speaking") setActivity("idle");
-  }, [activity, speechAvailable]);
-
-  const speakText = useCallback(
-    (content: string, ignoreMute = false) => {
-      if ((!ignoreMute && isMuted) || !speechAvailable) return false;
-
-      const spokenText = plainSpeech(content);
-      if (!spokenText) return false;
-
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(spokenText);
-      utterance.rate = 1.02;
-      utterance.pitch = 0.92;
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        utterance.lang = selectedVoice.lang;
-      }
-      utterance.onstart = () => setActivity("speaking");
-      utterance.onend = () => setActivity("idle");
-      utterance.onerror = () => setActivity("idle");
-      window.speechSynthesis.speak(utterance);
-      return true;
-    },
-    [isMuted, selectedVoice, speechAvailable],
-  );
-
-  const speakReply = useCallback((content: string) => speakText(content), [speakText]);
-
-  const previewVoice = useCallback(() => {
-    if (!speechAvailable || !selectedVoice) {
-      toast.error("No browser voice is available yet. Chrome may need a moment to load your device voices.");
-      return;
-    }
-    setIsMuted(false);
-    const started = speakText("Hello. I am ARKTANAX. Your workspace is ready when you are.", true);
-    if (!started) toast.error("ARKTANAX could not start a voice preview in this browser.");
-  }, [selectedVoice, speakText, speechAvailable]);
 
   const sendPrompt = useCallback(
     async (rawPrompt: string) => {
@@ -265,7 +167,6 @@ export default function Home() {
       if (!content || sendMessageMutation.isPending) return;
       const requestStartedAt = performance.now();
 
-      stopSpeaking();
       setComposer("");
       setActivity("thinking");
       setPendingMessage({ content, threadId: activeThreadId });
@@ -284,7 +185,7 @@ export default function Home() {
           utils.assistant.listThreads.invalidate(),
           utils.assistant.getThread.invalidate({ threadId: response.threadId }),
         ]);
-        if (!speakReply(response.reply)) setActivity("idle");
+        setActivity("idle");
       } catch (error) {
         console.error(error);
         setPendingMessage(null);
@@ -293,12 +194,11 @@ export default function Home() {
         toast.error("ARKTANAX could not respond. Your prompt is ready to retry.");
       }
     },
-    [activeMode, activeThreadId, selectedFileId, sendMessageMutation, speakReply, stopSpeaking, utils.assistant.getThread, utils.assistant.listThreads],
+    [activeMode, activeThreadId, selectedFileId, sendMessageMutation, utils.assistant.getThread, utils.assistant.listThreads],
   );
 
   const createNewThread = useCallback(async () => {
     if (!isAuthenticated) return startLogin();
-    stopSpeaking();
     try {
       const thread = await createThreadMutation.mutateAsync({ mode: activeMode });
       setActiveThreadId(thread.id);
@@ -309,7 +209,7 @@ export default function Home() {
       console.error(error);
       toast.error("Unable to start a new conversation.");
     }
-  }, [activeMode, createThreadMutation, isAuthenticated, stopSpeaking, utils.assistant.listThreads]);
+  }, [activeMode, createThreadMutation, isAuthenticated, utils.assistant.listThreads]);
 
   const openProfilePanel = useCallback(() => {
     const profile = profileQuery.data;
@@ -447,7 +347,6 @@ export default function Home() {
     }
 
     try {
-      stopSpeaking();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg"]
@@ -468,7 +367,7 @@ export default function Home() {
       setActivity("error");
       toast.error("Microphone access was not granted. Check your browser permissions and try again.");
     }
-  }, [activity, finishRecording, isAuthenticated, sendMessageMutation.isPending, stopSpeaking]);
+  }, [activity, finishRecording, isAuthenticated, sendMessageMutation.isPending]);
 
   const stopRecording = useCallback(() => {
     const recorder = recorderRef.current;
@@ -496,7 +395,7 @@ export default function Home() {
             ARKTANAX
           </h1>
           <p className="mt-7 max-w-md text-base leading-relaxed text-violet-100/75 sm:text-lg">
-            A focused conversation space for clear thinking, useful replies, and voice-first requests.
+            A focused conversation space for clear thinking, useful replies, and optional microphone transcription.
           </p>
           <button
             onClick={() => startLogin()}
@@ -663,67 +562,13 @@ export default function Home() {
           <div className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-white/10 bg-[#13092a]/35 backdrop-blur-xl shadow-[0_30px_80px_rgba(1,0,12,0.28)]">
           <div className="flex items-center justify-between border-b border-white/8 px-5 py-4 sm:px-6">
             <div className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full border border-teal-100/15 bg-teal-100/[0.08] text-teal-100"><Waves className="h-3.5 w-3.5" /></span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full border border-teal-100/15 bg-teal-100/[0.08] text-teal-100"><Bot className="h-3.5 w-3.5" /></span>
               <div>
                 <p className="text-sm font-medium text-white">Active conversation</p>
                 <p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-violet-100/45">{visibleMessages.length} contextual {visibleMessages.length === 1 ? "message" : "messages"}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <div className="relative">
-                <button
-                  onClick={() => setIsVoicePanelOpen(value => !value)}
-                  className={cn("flex h-9 items-center gap-2 rounded-full px-3 text-xs transition", isMuted ? "bg-white/7 text-violet-100/60 hover:bg-white/12" : "bg-teal-100/[0.1] text-teal-50 hover:bg-teal-100/[0.16]")}
-                  aria-expanded={isVoicePanelOpen}
-                  aria-label="Open ARKTANAX voice controls"
-                >
-                  {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                  <span className="hidden sm:inline">{isMuted ? "Voice muted" : "Voice"}</span>
-                  <SlidersHorizontal className="hidden h-3 w-3 opacity-70 sm:block" />
-                </button>
-                {isVoicePanelOpen && (
-                  <div className="absolute right-0 top-11 z-30 w-[18rem] rounded-2xl border border-white/12 bg-[#10061f]/95 p-4 shadow-2xl backdrop-blur-xl">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-white">Voice presence</p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-violet-100/55">ARKTANAX favors the most natural feminine English voice your device makes available.</p>
-                      </div>
-                      <button onClick={() => setIsVoicePanelOpen(false)} className="text-violet-100/50 transition hover:text-white" aria-label="Close voice controls"><X className="h-4 w-4" /></button>
-                    </div>
-                    <label className="mt-4 block text-[10px] uppercase tracking-[0.18em] text-violet-100/45" htmlFor="arktanax-voice">Available browser voices</label>
-                    <select
-                      id="arktanax-voice"
-                      value={selectedVoice?.voiceURI || ""}
-                      onChange={event => setSelectedVoiceURI(event.target.value)}
-                      disabled={!speechAvailable || availableVoices.length === 0}
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-xs text-white outline-none transition focus:border-teal-100/45 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {availableVoices.length === 0 ? <option value="">Loading device voices…</option> : availableVoices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} · {voice.lang}</option>)}
-                    </select>
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={previewVoice}
-                        disabled={!speechAvailable || availableVoices.length === 0}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-100/[0.12] px-3 py-2.5 text-xs font-medium text-teal-50 transition hover:bg-teal-100/[0.2] disabled:cursor-not-allowed disabled:opacity-50"
-                      ><Waves className="h-3.5 w-3.5" /> Preview voice</button>
-                      <button
-                        onClick={() => setIsMuted(value => !value)}
-                        className="rounded-xl border border-white/10 px-3 py-2.5 text-xs text-violet-100/75 transition hover:bg-white/10 hover:text-white"
-                      >{isMuted ? "Unmute" : "Mute"}</button>
-                    </div>
-                    <p className="mt-3 text-[10px] leading-relaxed text-violet-100/40">Voices are supplied by Chrome and your operating system. Install an additional system voice if the list does not include one you like.</p>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={stopSpeaking}
-                className={cn("flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs transition", activity === "speaking" ? "bg-rose-300/15 text-rose-100 hover:bg-rose-300/25" : "bg-white/[0.06] text-violet-100/70 hover:bg-white/[0.12] hover:text-white")}
-                aria-label="Stop ARKTANAX speech immediately"
-                title="Stop ARKTANAX speech immediately"
-              >
-                <Square className="h-3 w-3 fill-current" />
-                <span className="hidden sm:inline">Stop</span>
-              </button>
               <button
                 onClick={() => void removeCurrentThread()}
                 disabled={!activeThreadId || deleteThreadMutation.isPending}
@@ -815,8 +660,8 @@ export default function Home() {
                   onContextMenu={event => event.preventDefault()}
                   disabled={activity === "transcribing" || activity === "thinking"}
                   className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition disabled:cursor-not-allowed disabled:opacity-40", activity === "listening" ? "bg-rose-400 text-white shadow-[0_0_24px_rgba(251,113,133,0.55)]" : "bg-teal-100/[0.1] text-teal-100 hover:bg-teal-100/[0.18]")}
-                  aria-label={activity === "listening" ? "Release to send voice request" : "Hold to speak to ARKTANAX"}
-                  title="Hold to speak"
+                  aria-label={activity === "listening" ? "Release to transcribe your voice prompt" : "Hold to dictate a request"}
+                  title="Hold to dictate"
                 >
                   {activity === "listening" ? <AudioLines className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
                 </button>
@@ -840,7 +685,7 @@ export default function Home() {
                 </button>
               </div>
               <div className="flex items-center justify-between px-2 pb-1 pt-2 text-[10px] uppercase tracking-[0.16em] text-violet-100/35">
-                <span className="flex items-center gap-1.5"><MicOff className="h-3 w-3" /> Hold mic to speak</span>
+                <span className="flex items-center gap-1.5"><MicOff className="h-3 w-3" /> Hold mic to dictate</span>
                 <span>8 MB max · Source/PDF only</span>
               </div>
             </div>
